@@ -1,22 +1,5 @@
 # 📘 CrossCheck (IDOR Scanner) - User Manual
 
-## 🚨 Do's and Don'ts (Critical)
-
-### ✅ DO:
-1.  **Use Own Accounts:** ALWAYS test with accounts you own (e.g., create two fresh accounts on the target site).
-2.  **Respect Scope:** only scan domains explicitly allowed in the bug bounty program (check `bounty-list`).
-3.  **Set Rate Limits:** Use `--rate-limit 5` or lower for sensitive production sites.
-4.  **Use Proxy:** Pipe traffic through Burp Suite (`--proxy`) to keep a log of what you did.
-5.  **Verify Manually:** Always double-check a finding manually before reporting.
-
-### ❌ DON'T:
-1.  **Don't Scan Others:** NEVER scan user IDs that don't belong to you (unless you have explicit permission).
-2.  **Don't DoS:** Don't set rate limits too high (e.g., 100/s) or you might crash the server.
-3.  **Don't Ignore Errors:** If you see many 403s or 429s (Too Many Requests), STOP and slow down.
-4.  **Don't Leak Data:** Be careful where you save report files containing sensitive cookie data.
-
----
-
 ## 🚀 Quick Start Guide
 
 ### 1. Preparation
@@ -29,6 +12,7 @@ You need **two accounts** on the target website.
 2. Open DevTools (F12) -> Console.
 3. Type `document.cookie` and copy the string.
 4. Save it to a file `cookies.txt`.
+
 
 ### 2. Basic Scan
 Scan a target using your imported cookies.
