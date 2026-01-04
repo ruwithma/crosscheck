@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bug Bounty Tools
+results/
+output/
+*.log
+*.json
+*.txt
+!requirements.txt
+!README.md
+
+# Secrets & Config
+config.ini
+secrets.yaml
