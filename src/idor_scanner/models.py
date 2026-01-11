@@ -92,6 +92,7 @@ class Endpoint(BaseModel):
     method: HttpMethod = HttpMethod.GET
     parameters: Dict[str, Any] = Field(default_factory=dict)
     resource_ids: List[ResourceID] = Field(default_factory=list)
+    body_template: Optional[Dict[str, Any]] = None
     auth_required: bool = True
     description: Optional[str] = None
     
@@ -101,9 +102,32 @@ class Endpoint(BaseModel):
         if id_value and self.resource_ids:
             # Replace the first resource ID with the provided value
             first_id = self.resource_ids[0]
+            if first_id.position == -1: # Reserved for body
+                return f"{base_url.rstrip('/')}{path}"
+            
             path = path.replace(f"{{{first_id.value}}}", id_value)
             path = path.replace(first_id.value, id_value)
         return f"{base_url.rstrip('/')}{path}"
+
+    def body_for(self, id_value: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Generate request body, optionally replacing the resource ID."""
+        if not self.body_template:
+            return None
+            
+        if not id_value:
+            return self.body_template.copy()
+            
+        # Deep copy and replace
+        import json
+        body_str = json.dumps(self.body_template)
+        
+        if self.resource_ids:
+            first_id = self.resource_ids[0]
+            # If the ID is meant for the body (we can mark position -1 or just try replace)
+            body_str = body_str.replace(f"{{{first_id.value}}}", id_value)
+            body_str = body_str.replace(first_id.value, id_value)
+            
+        return json.loads(body_str)
 
 
 # --- Session Models ---

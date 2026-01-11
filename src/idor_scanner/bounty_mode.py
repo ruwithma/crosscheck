@@ -6,7 +6,7 @@ Pre-configured settings for popular bug bounty programs.
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-
+from .models import Endpoint, HttpMethod, IDType, ResourceID
 
 @dataclass
 class BugBountyConfig:
@@ -19,6 +19,7 @@ class BugBountyConfig:
     in_scope_domains: List[str] = field(default_factory=list)
     out_of_scope_patterns: List[str] = field(default_factory=list)
     notes: str = ""
+    known_endpoints: List[Endpoint] = field(default_factory=list)
 
 
 # Pre-configured bug bounty programs

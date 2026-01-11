@@ -110,10 +110,8 @@ class HTTPClient:
             self._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(self.timeout),
                 verify=self.verify_ssl,
-                # In Burp mode we might want to follow redirects manually or let Burp handle?
-                # Usually httpx handling is fine.
                 follow_redirects=self.follow_redirects,
-                proxies=proxies,
+                proxy=self.proxy,  # httpx 0.24+ uses 'proxy' not 'proxies'
                 headers={
                     "User-Agent": "IDOR-Scanner/1.0.0",
                     **self.custom_headers,

@@ -20,11 +20,13 @@ from . import __version__
 from .discovery import EndpointDiscovery
 from .detector import IDORDetector
 from .http_client import HTTPClient
-from .models import AuthType, ScanConfig, UserCredentials
+from .models import AuthType, ScanConfig, UserCredentials, Endpoint
 from .reporter import ReportGenerator
 from .session import SessionManager
 from .cookie_import import CookieImporter, load_cookies_from_file
 from .bounty_mode import get_bounty_config, list_programs, get_user_agent
+from .har_importer import HARImporter
+from .crawler import HeadlessCrawler
 
 # Initialize
 app = typer.Typer(
@@ -168,6 +170,14 @@ def scan(
         None, "--proxy", "-p",
         help="Proxy URL (e.g., http://127.0.0.1:8080 for Burp Suite)"
     ),
+    har_file: Optional[str] = typer.Option(
+        None, "--har",
+        help="Path to HAR file (from Browser DevTools) to learn endpoints"
+    ),
+    headless: bool = typer.Option(
+        False, "--headless",
+        help="Use headless browser to crawl and learn traffic (requires Playwright)"
+    ),
 ) -> None:
     """
     🎯 Scan an API for IDOR vulnerabilities.
@@ -226,6 +236,48 @@ def scan(
     if user_agent_suffix:
         custom_headers["User-Agent-Suffix"] = user_agent_suffix
     
+    # Load endpoints from HAR if provided
+    har_endpoints = []
+    if har_file:
+        try:
+            importer = HARImporter(target_domain=target)
+            har_endpoints = importer.load_file(har_file)
+            console.print(f"[green]✓ Loaded {len(har_endpoints)} endpoints from HAR file[/green]")
+            # Check for body templates
+            json_eps = sum(1 for ep in har_endpoints if ep.body_template)
+            if json_eps > 0:
+                console.print(f"[cyan]  Found {json_eps} endpoints with JSON body IDs[/cyan]")
+        except Exception as e:
+            console.print(f"[red]Error loading HAR file: {e}[/red]")
+            # Don't exit, just continue without HAR? No, better warn user.
+            
+    # Run Headless Crawler if requested
+    crawled_endpoints = []
+    if headless:
+        if not cookies:
+             console.print("[yellow]Warning: --headless works best with --cookies to crawl authenticated areas.[/yellow]")
+        
+        try:
+            console.print("[blue]🚀 Starting Headless Crawler...[/blue]")
+            crawler = HeadlessCrawler(target)
+            # Run async crawl. Since we are in sync main, we need asyncio.run or wait for the main loop?
+            # main calls _run_scan which is async. 
+            # Ideally we run crawler inside _run_scan? 
+            # Or we run it here synchronously (via asyncio.run).
+            crawled_endpoints = asyncio.run(crawler.crawl(imported_cookies))
+            console.print(f"[green]✓ Headless crawler found {len(crawled_endpoints)} endpoints[/green]")
+        except Exception as e:
+            console.print(f"[red]Crawler failed: {e}[/red]")
+
+    # Combine known endpoints
+    all_known_endpoints = []
+    if bounty_config and bounty_config.known_endpoints:
+        all_known_endpoints.extend(bounty_config.known_endpoints)
+    if har_endpoints:
+        all_known_endpoints.extend(har_endpoints)
+    if crawled_endpoints:
+        all_known_endpoints.extend(crawled_endpoints)
+    
     config = ScanConfig(
         target=target,
         users=users,
@@ -256,6 +308,7 @@ def scan(
             openapi=openapi,
             endpoints_file=endpoints_file,
             crawl=not no_crawl,
+            known_endpoints=all_known_endpoints or None,
         ))
     except KeyboardInterrupt:
         console.print("\n[yellow]Scan interrupted by user[/yellow]")
@@ -291,6 +344,7 @@ async def _run_scan(
     openapi: Optional[str],
     endpoints_file: Optional[str],
     crawl: bool,
+    known_endpoints: Optional[List[Endpoint]] = None,
 ) -> "ScanResult":
     """Run the actual scan asynchronously."""
     
@@ -348,6 +402,11 @@ async def _run_scan(
                 endpoints_file=endpoints_file,
                 crawl=crawl,
             )
+            
+            # Add known endpoints
+            if known_endpoints:
+                console.print(f"[dim]Adding {len(known_endpoints)} known bounty endpoints[/dim]")
+                endpoints.extend(known_endpoints)
             
             progress.update(
                 discover_task,

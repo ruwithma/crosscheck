@@ -219,6 +219,15 @@ class IDORDetector:
         )
         vulnerabilities.extend(method_vulns)
         
+        # Step 5: Test unauthenticated access (no auth at all)
+        unauth_vuln = await self._test_unauthenticated(
+            endpoint,
+            baseline,
+            victim_session,
+        )
+        if unauth_vuln:
+            vulnerabilities.append(unauth_vuln)
+        
         return EndpointResult(
             endpoint=endpoint,
             tested=True,
@@ -237,10 +246,17 @@ class IDORDetector:
         url = endpoint.url_for(self.config.target)
         
         try:
+            # Prepare body if template exists
+            json_body = None
+            if endpoint.body_template:
+                # Use session's user_id as a fallback/primary ID for baseline
+                json_body = endpoint.body_for(session.user_id)
+
             response = await self.session_manager.make_request(
                 session,
                 endpoint.method.value,
                 url,
+                json=json_body,
             )
             
             if response.status_code == 200:
@@ -269,10 +285,21 @@ class IDORDetector:
         
         try:
             # Attacker tries to access victim's resource
+            
+            # Prepare attack body
+            # We want to access the VICTIM'S resource (from baseline).
+            # The baseline used the victim's User ID (or resource ID).
+            # So the attacker should also request THAT ID.
+            json_body = None
+            if endpoint.body_template:
+                # Replace with Victim's User ID (which simulates targeting the victim)
+                json_body = endpoint.body_for(victim_session.user_id)
+            
             response = await self.session_manager.make_request(
                 attacker_session,
                 endpoint.method.value,
                 url,
+                json=json_body,
             )
             
             # Compare responses
@@ -392,20 +419,36 @@ class IDORDetector:
         url = endpoint.url_for(self.config.target)
         
         try:
+            # Prepare admin body
+            json_body_admin = None
+            if endpoint.body_template:
+                # Use admin session ID (or resource from previous steps if we had one)
+                # But typically admin ID is sufficient.
+                json_body_admin = endpoint.body_for(admin_session.user_id)
+            
             admin_response = await self.session_manager.make_request(
                 admin_session,
                 endpoint.method.value,
                 url,
+                json=json_body_admin,
             )
             
             if admin_response.status_code != 200:
                 return None
             
-            # Now try with regular user
+            # Now try with regular user but asking for the SAME resource (admin's resource)
+            # Example: Admin asks for Admin's Profile -> OK
+            # User asks for Admin's Profile -> ???
+            
+            json_body_user = None
+            if endpoint.body_template:
+                json_body_user = endpoint.body_for(admin_session.user_id)
+            
             user_response = await self.session_manager.make_request(
                 user_session,
                 endpoint.method.value,
                 url,
+                json=json_body_user,
             )
             
             # Compare responses
@@ -424,6 +467,71 @@ class IDORDetector:
                 
         except Exception as e:
             logger.error(f"Error in vertical test: {e}")
+        
+        return None
+
+    async def _test_unauthenticated(
+        self,
+        endpoint: Endpoint,
+        baseline: httpx.Response,
+        victim_session: Session,
+    ) -> Optional[Vulnerability]:
+        """
+        Test if endpoint is accessible without any authentication.
+        
+        This catches bugs like Notion's getRecordValues that return PII
+        to completely unauthenticated requests.
+        """
+        url = endpoint.url_for(self.config.target)
+        
+        try:
+            # Prepare body if template exists
+            json_body = None
+            if endpoint.body_template:
+                json_body = endpoint.body_for(victim_session.user_id)
+            
+            # Make request WITHOUT any auth headers/cookies
+            # Use the raw HTTP client instead of session_manager
+            response = await self.http_client.request(
+                endpoint.method.value,
+                url,
+                json=json_body,
+                # No auth headers! This is the key difference
+            )
+            
+            # If we get 200 with data, that's a vulnerability!
+            if response.status_code == 200:
+                # Compare with baseline to see if we got the same sensitive data
+                comparison = self.comparator.compare(baseline, response, "unauthenticated")
+                
+                if comparison and comparison.similarity_score > 0.5:
+                    # High similarity = we got sensitive data without auth!
+                    comparison.is_vulnerable = True
+                    comparison.description = "Endpoint accessible without authentication - returns sensitive data"
+                    
+                    # Create a "fake" attacker session for reporting
+                    from .models import Session as SessionModel
+                    from .models import AuthType, UserCredentials
+                    
+                    anonymous_session = SessionModel(
+                        user_id="anonymous",
+                        role="none",
+                        credentials=UserCredentials(username="anonymous", password=""),
+                        auth_type=AuthType.NONE,
+                    )
+                    
+                    return self._create_vulnerability(
+                        endpoint=endpoint,
+                        comparison=comparison,
+                        victim=victim_session,
+                        attacker=anonymous_session,
+                        baseline=baseline,
+                        attack_response=response,
+                        vuln_type="Unauthenticated Information Disclosure",
+                    )
+                    
+        except Exception as e:
+            logger.error(f"Error in unauthenticated test: {e}")
         
         return None
     
