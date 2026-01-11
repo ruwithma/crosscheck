@@ -28,6 +28,8 @@ from .models import (
     Vulnerability,
 )
 from .session import SessionManager
+from .jwt_analyzer import JWTAnalyzer
+from .advanced_tests import MassAssignmentTester, APIVersioningTester, ParameterPollutionTester
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,12 @@ class IDORDetector:
         self.session_manager = session_manager
         self.config = config
         self.comparator = ResponseComparator()
+        
+        # Advanced testers
+        self.jwt_analyzer = JWTAnalyzer()
+        self.mass_assignment_tester = MassAssignmentTester(http_client, self.comparator)
+        self.versioning_tester = APIVersioningTester(http_client, self.comparator)
+        self.pollution_tester = ParameterPollutionTester(http_client)
         
         # Results
         self.vulnerabilities: List[Vulnerability] = []
@@ -227,6 +235,39 @@ class IDORDetector:
         )
         if unauth_vuln:
             vulnerabilities.append(unauth_vuln)
+        
+        # Step 6: Test Mass Assignment (add privileged fields)
+        try:
+            mass_results = await self.mass_assignment_tester.test_endpoint(
+                endpoint,
+                {"Authorization": f"Bearer {attacker_session.token}"} if attacker_session.token else {},
+                self.config.target,
+                endpoint.body_template
+            )
+            for field_name, field_value, reflected in mass_results:
+                if reflected:
+                    vulnerabilities.append(self._create_mass_assignment_vuln(
+                        endpoint, field_name, field_value, attacker_session
+                    ))
+        except Exception as e:
+            logger.debug(f"Mass assignment test error: {e}")
+        
+        # Step 7: Test Parameter Pollution
+        try:
+            pollution_results = await self.pollution_tester.test_endpoint(
+                endpoint,
+                {"Authorization": f"Bearer {attacker_session.token}"} if attacker_session.token else {},
+                self.config.target,
+                attacker_session.user_id,
+                victim_session.user_id
+            )
+            for result in pollution_results:
+                if result.get('victim_data_leaked'):
+                    vulnerabilities.append(self._create_pollution_vuln(
+                        endpoint, result, victim_session, attacker_session
+                    ))
+        except Exception as e:
+            logger.debug(f"Parameter pollution test error: {e}")
         
         return EndpointResult(
             endpoint=endpoint,
@@ -722,3 +763,60 @@ def get_resource(resource_id):
     
     return resource.to_json()
 '''
+    
+    def _create_mass_assignment_vuln(
+        self,
+        endpoint: Endpoint,
+        field_name: str,
+        field_value: Any,
+        attacker: Session,
+    ) -> Vulnerability:
+        """Create a Mass Assignment vulnerability."""
+        return Vulnerability(
+            id=str(uuid.uuid4())[:8],
+            type="Mass Assignment",
+            severity=Severity.HIGH,
+            endpoint=endpoint,
+            evidence=Evidence(
+                description=f"Field '{field_name}' with value '{field_value}' was accepted and reflected",
+                baseline_request=None,
+                attack_request={"body": {field_name: field_value}},
+                baseline_response=None,
+                attack_response=None,
+            ),
+            description=f"API accepts privileged field '{field_name}' which could allow privilege escalation",
+            impact="Attacker can potentially modify their role, permissions, or other protected fields",
+            remediation="Implement allowlist of acceptable fields. Never directly map request body to database.",
+            cvss_score=7.5,
+            cwe_id="CWE-915",
+            discovered_at=datetime.now(),
+        )
+    
+    def _create_pollution_vuln(
+        self,
+        endpoint: Endpoint,
+        result: Dict,
+        victim: Session,
+        attacker: Session,
+    ) -> Vulnerability:
+        """Create a Parameter Pollution vulnerability."""
+        return Vulnerability(
+            id=str(uuid.uuid4())[:8],
+            type="HTTP Parameter Pollution",
+            severity=Severity.HIGH,
+            endpoint=endpoint,
+            evidence=Evidence(
+                description=f"Parameter pollution technique {result.get('technique')} succeeded",
+                baseline_request=None,
+                attack_request={"url": result.get('polluted_url')},
+                baseline_response=None,
+                attack_response=None,
+            ),
+            description="API is vulnerable to HTTP Parameter Pollution, allowing IDOR bypass",
+            impact=f"Attacker can access victim's data using duplicate/array parameters",
+            remediation="Use strict parameter parsing. Accept only single values for ID parameters.",
+            cvss_score=7.5,
+            cwe_id="CWE-235",
+            discovered_at=datetime.now(),
+        )
+
