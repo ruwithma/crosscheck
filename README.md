@@ -10,6 +10,8 @@ A specialized security scanner that detects **Broken Access Control vulnerabilit
 - **Actionable Reports**: Clear PoC with exact reproduction steps
 - **Multiple Output Formats**: Terminal, JSON, Markdown, HTML
 
+> 📚 **[Read the Full Documentation](DOCUMENTATION.md)** for detailed usage, configuration, and architecture guides.
+
 ## Installation
 
 ```bash
