@@ -49,9 +49,9 @@ dev = [
 idor-scanner = "idor_scanner.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/idor-scanner"
-Documentation = "https://github.com/yourusername/idor-scanner#readme"
-Repository = "https://github.com/yourusername/idor-scanner"
+Homepage = "https://github.com/ruwithma/crosscheck"
+Documentation = "https://github.com/ruwithma/crosscheck#readme"
+Repository = "https://github.com/ruwithma/crosscheck"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/idor_scanner"]

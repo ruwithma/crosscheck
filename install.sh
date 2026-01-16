@@ -22,7 +22,7 @@ if [ "$1" == "--venv" ]; then
     echo "[*] Creating virtual environment..."
     python3 -m venv venv
     source venv/bin/activate
-    echo "[✓] Virtual environment activated"
+    echo "[+] Virtual environment activated"
 fi
 
 # Install the package

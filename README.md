@@ -1,6 +1,6 @@
 # IDOR Scanner - API Access Control Vulnerability Scanner
 
-🔍 A specialized security scanner that detects **Broken Access Control vulnerabilities** (IDOR/BOLA) in REST APIs through intelligent multi-user testing and semantic response comparison.
+A specialized security scanner that detects **Broken Access Control vulnerabilities** (IDOR/BOLA) in REST APIs through intelligent multi-user testing and semantic response comparison.
 
 ## Features
 
@@ -24,7 +24,7 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-## 🚀 Quick Start Guide
+## Quick Start Guide
 
 ### 1. Preparation
 You need **two accounts** on the target website.
@@ -71,7 +71,7 @@ idor-scanner scan ... --proxy http://127.0.0.1:8080
 
 ---
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|

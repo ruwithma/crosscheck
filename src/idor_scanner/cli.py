@@ -31,7 +31,7 @@ from .crawler import HeadlessCrawler
 # Initialize
 app = typer.Typer(
     name="idor-scanner",
-    help="🔍 API Access Control Scanner - Detect IDOR/BOLA vulnerabilities",
+    help="API Access Control Scanner - Detect IDOR/BOLA vulnerabilities",
     add_completion=False,
 )
 console = Console()
@@ -90,7 +90,7 @@ def main(
     ),
 ) -> None:
     """
-    🔍 IDOR Scanner - API Access Control Vulnerability Scanner
+    IDOR Scanner - API Access Control Vulnerability Scanner
     
     Detects Broken Access Control vulnerabilities (IDOR/BOLA) in REST APIs
     through intelligent multi-user testing and semantic response comparison.
@@ -180,7 +180,7 @@ def scan(
     ),
 ) -> None:
     """
-    🎯 Scan an API for IDOR vulnerabilities.
+    Scan an API for IDOR vulnerabilities.
     
     Requires at least 2 user accounts to test access control between users.
     
@@ -196,7 +196,7 @@ def scan(
     if bounty_program:
         bounty_config = get_bounty_config(bounty_program)
         if bounty_config:
-            console.print(f"[cyan]📋 Using bug bounty preset: {bounty_config.name}[/cyan]")
+            console.print(f"[cyan]Using bug bounty preset: {bounty_config.name}[/cyan]")
             if bounty_config.user_agent_suffix and not user_agent_suffix:
                 user_agent_suffix = bounty_config.user_agent_suffix
                 console.print(f"[dim]   User-Agent suffix: {user_agent_suffix}[/dim]")
@@ -212,7 +212,7 @@ def scan(
     if cookies:
         try:
             imported_cookies = load_cookies_from_file(cookies)
-            console.print(f"[green]✓ Loaded {len(imported_cookies)} cookies from file[/green]")
+            console.print(f"[green][+] Loaded {len(imported_cookies)} cookies from file[/green]")
         except Exception as e:
             console.print(f"[red]Error loading cookies: {e}[/red]")
             raise typer.Exit(1)
@@ -242,7 +242,7 @@ def scan(
         try:
             importer = HARImporter(target_domain=target)
             har_endpoints = importer.load_file(har_file)
-            console.print(f"[green]✓ Loaded {len(har_endpoints)} endpoints from HAR file[/green]")
+            console.print(f"[green][+] Loaded {len(har_endpoints)} endpoints from HAR file[/green]")
             # Check for body templates
             json_eps = sum(1 for ep in har_endpoints if ep.body_template)
             if json_eps > 0:
@@ -258,14 +258,14 @@ def scan(
              console.print("[yellow]Warning: --headless works best with --cookies to crawl authenticated areas.[/yellow]")
         
         try:
-            console.print("[blue]🚀 Starting Headless Crawler...[/blue]")
+            console.print("[blue]Starting Headless Crawler...[/blue]")
             crawler = HeadlessCrawler(target)
             # Run async crawl. Since we are in sync main, we need asyncio.run or wait for the main loop?
             # main calls _run_scan which is async. 
             # Ideally we run crawler inside _run_scan? 
             # Or we run it here synchronously (via asyncio.run).
             crawled_endpoints = asyncio.run(crawler.crawl(imported_cookies))
-            console.print(f"[green]✓ Headless crawler found {len(crawled_endpoints)} endpoints[/green]")
+            console.print(f"[green][+] Headless crawler found {len(crawled_endpoints)} endpoints[/green]")
         except Exception as e:
             console.print(f"[red]Crawler failed: {e}[/red]")
 
@@ -291,7 +291,7 @@ def scan(
     console.print()
     console.print(
         Panel(
-            "[bold blue]🔍 IDOR SCANNER[/bold blue]\n"
+            "[bold blue]IDOR SCANNER[/bold blue]\n"
             f"[dim]Target: {target}[/dim]\n"
             f"[dim]Users: {len(users)}[/dim]"
             + (f"\n[dim]Bounty: {bounty_config.name}[/dim]" if bounty_config else ""),
